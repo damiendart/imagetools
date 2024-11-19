@@ -1,0 +1,172 @@
+#!/usr/bin/env python3
+"""
+An raster-image-exporting thingy.
+"""
+
+# This file was written by Damien Dart, <damiendart@pobox.com>. This is
+# free and unencumbered software released into the public domain. For
+# more information, please refer to the accompanying "UNLICENCE" file.
+
+import argparse
+import concurrent.futures
+import dataclasses
+import os
+import pathlib
+import re
+import shutil
+import subprocess
+import sys
+import typing
+import tempfile
+
+
+@dataclasses.dataclass
+class Job:
+    path_input: pathlib.Path
+    path_output: pathlib.Path
+    width: int
+
+
+def fatal_error(message: str) -> None:
+    print(
+        "{}: error: {}".format(os.path.basename(sys.argv[0]), message),
+        file=sys.stderr,
+    )
+
+    raise SystemExit(1)
+
+
+def main(arguments: argparse.Namespace) -> None:
+    jobs = []
+
+    for infile in arguments.infiles:
+        path = pathlib.Path(infile.name)
+        parts = path.stem.split("--")
+
+        if len(parts) != 2:
+            fatal_error("unable to parse filename")
+
+        for width in parts[1].split("-"):
+            width = int(width)
+
+            for extension in ['.avif', '.jpg', '.png', '.webp']:
+                output_path = "{}-{}{}".format(parts[0], width, extension)
+                jobs.append(
+                    Job(
+                        path,
+                        pathlib.Path(output_path),
+                        width,
+                    )
+                )
+
+    with concurrent.futures.ThreadPoolExecutor() as executor:
+        for job in jobs:
+            executor.submit(process_job, job)
+
+
+def parse_arguments(arguments: typing.List[str]) -> argparse.Namespace:
+    parser = argparse.ArgumentParser(
+        description=__doc__,
+        formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+    parser.add_argument(
+        "infiles",
+        help="input image files to be processed",
+        nargs="*",
+        type=argparse.FileType("rb"),
+    )
+
+    return parser.parse_args(arguments)
+
+
+def process_job(job: Job):
+    if job.path_output.suffix == '.png':
+        subprocess.check_output(
+            [
+                "magick",
+                job.path_input,
+                "-filter",
+                "LanczosSharp",
+                "-resize",
+                str(job.width),
+                job.path_output,
+            ],
+        )
+
+        subprocess.check_output(
+            [
+                "oxipng",
+                "--fast",
+                "-o",
+                "max",
+                "--strip",
+                "all",
+                "--zopfli",
+                job.path_output,
+            ],
+            stderr=subprocess.STDOUT,
+        )
+    elif job.path_output.suffix == '.avif':
+        with tempfile.NamedTemporaryFile() as tmp:
+            print(tmp.name)
+            subprocess.check_output(
+                [
+                    "magick",
+                    job.path_input,
+                    "-filter",
+                    "LanczosSharp",
+                    "-resize",
+                    str(job.width),
+                    tmp.name,
+                ],
+            )
+
+            subprocess.check_output(
+                [
+                    "cavif",
+                    "--color=rgb",
+                    "-o",
+                    job.path_output,
+                    "--overwrite",
+                    "--speed=3",
+                    tmp.name,
+                ],
+            )
+    elif job.path_output.suffix == '.webp':
+        subprocess.check_output(
+            [
+                "magick",
+                job.path_input,
+                "-define",
+                "webp:lossless=true",
+                "-define",
+                "webp:method=6",
+                "-filter",
+                "LanczosSharp",
+                "-quality",
+                "30",
+                "-resize",
+                str(job.width),
+                job.path_output,
+            ],
+        )
+    else:
+        subprocess.check_output(
+            [
+                "magick",
+                job.path_input,
+                "-filter",
+                "LanczosSharp",
+                "-resize",
+                str(job.width),
+                job.path_output,
+            ],
+        )
+
+    print('[✔] Created "{}"'.format(job.path_output))
+
+
+if __name__ == "__main__":
+    arguments = parse_arguments(sys.argv[1:])
+
+    main(arguments)
