@@ -1,7 +1,3 @@
-# Commands:
-# docker build -t imagetools .
-# docker run -it -v $PWD:/app --rm image-crunch test--400-800-1200.png
-
 FROM dpokidov/imagemagick:latest-bookworm
 
 RUN <<EOT

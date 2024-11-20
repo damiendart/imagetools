@@ -108,7 +108,6 @@ def process_job(job: Job):
         )
     elif job.path_output.suffix == '.avif':
         with tempfile.NamedTemporaryFile() as tmp:
-            print(tmp.name)
             subprocess.check_output(
                 [
                     "magick",
