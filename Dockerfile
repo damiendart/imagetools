@@ -4,6 +4,9 @@
 
 FROM dpokidov/imagemagick:latest-bookworm
 
+ARG USER_ID
+ARG GROUP_ID
+
 RUN <<EOT
   set -ex
   apt-get -y update
@@ -29,8 +32,17 @@ RUN <<EOT
   rm -f "$TEMP"
 EOT
 
+RUN <<EOT
+  set -ex
+  if [ ${USER_ID:-0} -ne 0 ] && [ ${GROUP_ID:-0} -ne 0 ]; then
+    groupadd -g ${GROUP_ID} imagetools
+    useradd -l -u ${USER_ID} -g imagetools imagetools
+  fi
+EOT
+
 COPY --chmod=0755 "export-images" "/usr/local/bin/export-images"
 
 WORKDIR "/app"
+USER "imagetools"
 
 ENTRYPOINT ["export-images"]
