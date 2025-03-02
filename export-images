@@ -38,6 +38,11 @@ def fatal_error(message: str) -> None:
 
 def main(arguments: argparse.Namespace) -> None:
     jobs = []
+    outdir = ""
+
+    if arguments.outdir:
+        os.makedirs(arguments.outdir, 0o700, True)
+        outdir = arguments.outdir
 
     for infile in arguments.infiles:
         path = pathlib.Path(infile.name)
@@ -54,7 +59,7 @@ def main(arguments: argparse.Namespace) -> None:
                 jobs.append(
                     Job(
                         path,
-                        pathlib.Path(output_path),
+                        pathlib.Path(os.path.join(outdir, output_path)),
                         width,
                     )
                 )
@@ -68,6 +73,13 @@ def parse_arguments(arguments: typing.List[str]) -> argparse.Namespace:
     parser = argparse.ArgumentParser(
         description=__doc__,
         formatter_class=argparse.RawDescriptionHelpFormatter,
+    )
+
+    parser.add_argument(
+        "--outdir",
+        help="create output files in OUTDIR",
+        nargs="?",
+        type=pathlib.Path,
     )
     parser.add_argument(
         "infiles",
