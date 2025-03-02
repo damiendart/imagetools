@@ -49,7 +49,7 @@ def main(arguments: argparse.Namespace) -> None:
         parts = path.stem.split("--")
 
         if len(parts) != 2:
-            fatal_error("unable to parse filename")
+            fatal_error("unable to parse filename: {}".format(path))
 
         for width in parts[1].split("-"):
             width = int(width)
