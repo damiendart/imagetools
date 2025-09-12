@@ -12,8 +12,6 @@ import concurrent.futures
 import dataclasses
 import os
 import pathlib
-import re
-import shutil
 import subprocess
 import sys
 import typing
@@ -51,10 +49,10 @@ def main(arguments: argparse.Namespace) -> None:
         if len(parts) != 2:
             fatal_error("unable to parse filename: {}".format(path))
 
-        for width in parts[1].split("-"):
-            width = int(width)
+        for w in parts[1].split("-"):
+            width = int(w)
 
-            for extension in ['.avif', '.jpg', '.png', '.webp']:
+            for extension in [".avif", ".jpg", ".png", ".webp"]:
                 output_path = "{}-{}{}".format(parts[0], width, extension)
                 jobs.append(
                     Job(
@@ -92,7 +90,7 @@ def parse_arguments(arguments: typing.List[str]) -> argparse.Namespace:
 
 
 def process_job(job: Job):
-    if job.path_output.suffix == '.png':
+    if job.path_output.suffix == ".png":
         subprocess.check_output(
             [
                 "magick",
@@ -128,7 +126,7 @@ def process_job(job: Job):
             ],
             stderr=subprocess.STDOUT,
         )
-    elif job.path_output.suffix == '.avif':
+    elif job.path_output.suffix == ".avif":
         with tempfile.NamedTemporaryFile() as tmp:
             subprocess.check_output(
                 [
@@ -154,7 +152,7 @@ def process_job(job: Job):
                     tmp.name,
                 ],
             )
-    elif job.path_output.suffix == '.webp':
+    elif job.path_output.suffix == ".webp":
         subprocess.check_output(
             [
                 "magick",

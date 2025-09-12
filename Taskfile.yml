@@ -1,0 +1,62 @@
+# Copyright (C) Damien Dart, <damiendart@pobox.com>.
+# This file is distributed under the MIT licence. For more information,
+# please refer to the accompanying "LICENCE" file.
+---
+
+version: '3'
+
+output: 'prefixed'
+
+tasks:
+  default:
+    deps:
+      - task: 'ci'
+
+  ci:
+    cmds:
+      - task: 'start'
+      - task: 'dependencies'
+      - task: 'lint'
+    desc: 'Run all CI-related tasks'
+
+  dependencies:
+    cmds:
+      - task: 'dependencies:python'
+    desc: 'Run all dependency-installing tasks'
+
+  dependencies:python:
+    cmds:
+      - '.venv/bin/python -m pip install -r requirements-dev.txt'
+    desc: 'Install Python dependencies for development'
+
+  lint:
+    cmds:
+      - task: 'lint:python'
+    desc: 'Run all linting-related tasks'
+
+  lint:python:
+    cmds:
+      - task: 'lint:python:black'
+      - task: 'lint:python:flake8'
+      - task: 'lint:python:mypy'
+    desc: 'Run all Python-linting tasks'
+
+  lint:python:black:
+    cmds:
+      - '.venv/bin/black --check --diff export-images'
+    desc: 'Lint Python scripts with Black'
+
+  lint:python:flake8:
+    cmds:
+      - '.venv/bin/flake8 export-images'
+    desc: 'Lint Python scripts with Flake8'
+
+  lint:python:mypy:
+    cmds:
+      - '.venv/bin/mypy --scripts-are-modules export-images'
+    desc: 'Type check Python scripts with mypy'
+
+  start:
+    cmds:
+      - 'python3.13 -m venv .venv'
+    desc: 'Create a Python virtual environment for development and testing'
