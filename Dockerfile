@@ -1,17 +1,16 @@
+# See "export-images" for more information.
+#
 # Copyright (C) Damien Dart, <damiendart@pobox.com>.
 # This file is distributed under the MIT licence. For more information,
 # please refer to the accompanying "LICENCE" file.
 
 FROM dpokidov/imagemagick:7.1.2-12-trixie
 
-ARG USER_ID
-ARG GROUP_ID
-
 RUN <<EOT
   set -ex
   apt-get -y update
   apt-get -y upgrade
-  apt-get install -y --no-install-recommends curl python3
+  apt-get install -y --no-install-recommends curl
 EOT
 
 RUN <<EOT
@@ -32,17 +31,4 @@ RUN <<EOT
   rm -f "$TEMP"
 EOT
 
-RUN <<EOT
-  set -ex
-  if [ ${USER_ID:-0} -ne 0 ] && [ ${GROUP_ID:-0} -ne 0 ]; then
-    groupadd -g ${GROUP_ID} imagetools
-    useradd -l -u ${USER_ID} -g imagetools imagetools
-  fi
-EOT
-
-COPY --chmod=0755 "export-images" "/usr/local/bin/export-images"
-
-WORKDIR "/app"
-USER "imagetools"
-
-ENTRYPOINT ["export-images"]
+ENTRYPOINT []

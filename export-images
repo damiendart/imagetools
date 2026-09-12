@@ -1,6 +1,10 @@
 #!/usr/bin/env python3
 """
-An raster-image-exporting thingy.
+Exports raster images into a variety of formats and sizes.
+
+Requires the "imagetools" Docker container. The script uses a Docker
+container for its third-party dependencies mainly because installing a
+fully-featured version of ImageMagick is a faff.
 """
 
 # Copyright (C) Damien Dart, <damiendart@pobox.com>.
@@ -15,7 +19,6 @@ import pathlib
 import subprocess
 import sys
 import typing
-import tempfile
 
 
 @dataclasses.dataclass
@@ -60,8 +63,10 @@ def main(arguments: argparse.Namespace) -> None:
                 )
 
     with concurrent.futures.ThreadPoolExecutor() as executor:
-        for job in jobs:
-            executor.submit(process_job, job)
+        futures = {executor.submit(process_job, job): job for job in jobs}
+
+        for future in concurrent.futures.as_completed(futures):
+            print('[✔] Created "{}"'.format(future.result()))
 
 
 def parse_arguments(arguments: typing.List[str]) -> argparse.Namespace:
@@ -92,73 +97,54 @@ def parse_arguments(arguments: typing.List[str]) -> argparse.Namespace:
 
 
 def process_job(job: Job):
-    if job.path_output.suffix == ".png":
-        subprocess.check_output(
-            [
-                "magick",
-                job.path_input,
-                "-define",
-                "png:compression-filter=5",
-                "-define",
-                "png:compression-level=9",
-                "-define",
-                "png:compression-strategy=1",
-                "-define",
-                "png:exclude-chunk=all",
-                "-filter",
-                "LanczosSharp",
-                "-interlace",
-                "none",
-                "-thumbnail",
-                str(job.width),
-                "-strip",
-                job.path_output,
-            ],
-        )
+    command_base = ["docker", "run", "-i", "--rm", "imagetools"]
+    input_data = job.path_input.read_bytes()
 
-        subprocess.check_output(
+    if job.path_output.suffix == ".png":
+        output_data = subprocess.check_output(
             [
-                "oxipng",
-                "--fast",
-                "-o",
-                "max",
-                "--strip",
-                "all",
-                job.path_output,
+                *command_base,
+                "sh",
+                "-c",
+                (
+                    "magick - "
+                    "-define png:compression-filter=5 "
+                    "-define png:compression-level=9 "
+                    "-define png:compression-strategy=1 "
+                    "-define png:exclude-chunk=all "
+                    "-filter LanczosSharp "
+                    "-interlace none "
+                    "-strip "
+                    "-thumbnail {} "
+                    "png:- | oxipng --fast -o max --strip all -"
+                ).format(job.width),
             ],
+            input=input_data,
             stderr=subprocess.STDOUT,
         )
     elif job.path_output.suffix == ".avif":
-        with tempfile.NamedTemporaryFile() as tmp:
-            subprocess.check_output(
-                [
-                    "magick",
-                    job.path_input,
-                    "-filter",
-                    "LanczosSharp",
-                    "-strip",
-                    "-thumbnail",
-                    str(job.width),
-                    tmp.name,
-                ],
-            )
-
-            subprocess.check_output(
-                [
-                    "cavif",
-                    "--color=rgb",
-                    "-o",
-                    job.path_output,
-                    "--overwrite",
-                    "--speed=3",
-                    tmp.name,
-                ],
-            )
-    elif job.path_output.suffix == ".webp":
-        subprocess.check_output(
+        output_data = subprocess.check_output(
             [
+                *command_base,
+                "sh",
+                "-c",
+                (
+                    "magick - "
+                    "-filter LanczosSharp "
+                    "-strip "
+                    "-thumbnail {} "
+                    "png:- | cavif --color=rgb --speed=3 -"
+                ).format(job.width),
+            ],
+            input=input_data,
+            stderr=subprocess.STDOUT,
+        )
+    elif job.path_output.suffix == ".webp":
+        output_data = subprocess.check_output(
+            [
+                *command_base,
                 "magick",
-                job.path_input,
+                "-",
                 "-define",
                 "webp:lossless=true",
                 "-define",
@@ -170,27 +156,42 @@ def process_job(job: Job):
                 "-strip",
                 "-thumbnail",
                 str(job.width),
-                job.path_output,
+                "webp:-",
             ],
+            input=input_data,
+            stderr=subprocess.STDOUT,
         )
     else:
-        subprocess.check_output(
+        output_data = subprocess.check_output(
             [
+                *command_base,
                 "magick",
-                job.path_input,
+                "-",
                 "-filter",
                 "LanczosSharp",
                 "-strip",
                 "-thumbnail",
                 str(job.width),
-                job.path_output,
+                "jpg:-",
             ],
+            input=input_data,
+            stderr=subprocess.STDOUT,
         )
 
-    print('[✔] Created "{}"'.format(job.path_output))
+    job.path_output.write_bytes(output_data)
+
+    return job.path_output
 
 
 if __name__ == "__main__":
     arguments = parse_arguments(sys.argv[1:])
+
+    try:
+        subprocess.check_output(
+            ["docker", "image", "inspect", "imagetools"],
+            stderr=subprocess.STDOUT,
+        )
+    except subprocess.CalledProcessError:
+        fatal_error('"imagetools" container image is required')
 
     main(arguments)
